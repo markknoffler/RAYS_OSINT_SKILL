@@ -1,0 +1,33 @@
+# Python
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.insightface/
+
+# Investigation workspaces (user CWD artifacts — never commit)
+*_osint/
+scripts_log.txt
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# Playwright
+playwright/.cache/
+ms-playwright/
+
+# Secrets
+.env
+*.session
+user-data-dir/
+
+.cursor/
