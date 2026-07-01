@@ -21,9 +21,14 @@ Thumbs.db
 .vscode/
 *.swp
 
-# Playwright
-playwright/.cache/
-ms-playwright/
+# Node (Playwright MCP test harness)
+skills/person-osint-pipeline/scripts/node_modules/
+skills/person-osint-pipeline/scripts/package-lock.json
+skills/person-osint-pipeline/scripts/.playwright-mcp/
+
+# Investigation workspaces
+*_osint/
+test_investigation/
 
 # Secrets
 .env

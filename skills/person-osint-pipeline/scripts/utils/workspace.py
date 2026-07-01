@@ -56,6 +56,10 @@ class Workspace:
             self.related_dir,
             self.locations_dir,
             self.network_dir,
+            self.root / "tools" / "spiderfoot",
+            self.root / "tools" / "sherlock",
+            self.root / "tools" / "holehe",
+            self.root / "tools" / "epieos",
         ):
             d.mkdir(parents=True, exist_ok=True)
 

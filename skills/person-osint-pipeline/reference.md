@@ -1,133 +1,144 @@
 # Person OSINT Pipeline — Reference
 
-## File naming
+## Persistent browser sessions (read first)
 
-| Artifact | Rule |
-|----------|------|
-| Workspace folder | `{subject_slug}_osint` in user CWD |
-| Account directory | Social handle + platform suffix (`janedoe_ig`) |
-| Profile screenshot | Always `profile.png` |
-| Post screenshots | `{url_slug}.png` from post/media URL |
-| `accounts_index.md` | Master table + optional image link log |
+The user logs into LinkedIn and Instagram **once**. All future agent sessions reuse the same cookies.
 
-### Handle extraction examples
-
-| URL | handle_dir |
-|-----|------------|
-| `https://instagram.com/janedoe` | `janedoe_ig` |
-| `https://linkedin.com/in/jane-doe` | `jane-doe_linkedin` |
-| `https://x.com/janedoe` | `janedoe_x` |
-| `https://facebook.com/janedoe` | `janedoe_fb` |
-
-Python helper: `scripts/utils/image_naming.py` → `extract_handle_from_url()`, `url_to_image_filename()`.
-
----
-
-## Face verification thresholds
-
-InsightFace `buffalo_l` cosine similarity (default **0.45**):
-
-| Range | Interpretation |
-|-------|----------------|
-| ≥ 0.55 | Strong match |
-| 0.45 – 0.55 | Likely same person — verify manually if borderline |
-| < 0.45 | Reject account (Pass 1) or move to `related/` (Pass 2) |
-
-Tune with `--threshold` / `--match-threshold` flags.
-
-First run downloads models to `~/.insightface/models/` (one-time, offline thereafter).
-
----
-
-## Playwright MCP setup
-
-### Cursor
-
-Repo includes `.cursor/mcp.json`:
+### Required MCP config
 
 ```json
 {
   "mcpServers": {
     "playwright": {
       "command": "npx",
-      "args": ["-y", "@playwright/mcp@latest"]
+      "args": [
+        "-y",
+        "@playwright/mcp@latest",
+        "--browser=firefox",
+        "--user-data-dir",
+        "/home/mark/.cursor/playwright-osint-profile",
+        "--allow-unrestricted-file-access"
+      ]
     }
   }
 }
 ```
 
-Install browsers once:
+**Use the same `--user-data-dir` path every time.** Never change it between sessions or logins will be lost.
+
+| Do | Do not |
+|----|--------|
+| Fixed `--user-data-dir` path | Omit `--user-data-dir` (temp profile, lost on close) |
+| Headed browser (no `--headless`) | `--headless` (blocked by LinkedIn/Instagram) |
+| `--allow-unrestricted-file-access` | Restricted file access (screenshots fail) |
+| `--browser=firefox` | User's Firefox via Playwright |
+| `--browser=chromium` | Fallback on Arch if Firefox fails |
+
+Install browser once:
 
 ```bash
-npx playwright install chromium
+npx @playwright/mcp install-browser chrome-for-testing
 ```
 
-### Logged-in sessions (Instagram / LinkedIn)
+### Session persistence checklist
 
-Follower/following lists often require authentication. Options:
+- [ ] `mcp.json` has fixed `--user-data-dir`
+- [ ] No `--isolated` flag present
+- [ ] User logged in once in the MCP browser window
+- [ ] Agent verified feed/home visible (not login form) before investigations
 
-1. **Headed browser** — run Playwright MCP without `--headless`; log in manually when browser opens
-2. **User data dir** — persist session:
-   ```json
-   "args": ["-y", "@playwright/mcp@latest", "--user-data-dir", "/path/to/playwright-profile"]
-   ```
-3. **Skip Phase 6** — document in `final_report.md` that network expansion was not possible
-
-### Screenshot tips
-
-- Wait for network idle after navigation
-- Scroll incrementally to load lazy media
-- Save screenshots to absolute paths under `{workspace}/accounts/{handle}/`
-- Copy exact post URL from address bar or share link into `accounts_index.md`
+Profile data lives at: `~/.cursor/playwright-osint-profile/`
 
 ---
 
-## Platform limitations
+## Agent vs scripts
 
-| Platform | Public access | Followers/following | Bot risk |
-|----------|---------------|---------------------|----------|
-| Instagram | Partial | Usually login-required | High |
-| LinkedIn | Limited | N/A | Very high |
-| X / Twitter | Moderate | Partially public | Medium |
-| Facebook | Very limited | Login-required | High |
+| Task | Who |
+|------|-----|
+| Google search, open links, screenshots, scrolling, metadata scrape | **Agent** via MCP tools |
+| Face identity matching, delete/reject accounts, move related faces | **Python scripts** |
+| Face-visible gate (is there a face in this screenshot?) | **Agent VLM** |
+| Face identity score (is this the subject?) | **`verify_accounts.py` only** |
 
-**Recommendations:**
-- Add 2–5 second delays between profile loads
-- Cap network expansion at 50–100 users unless user explicitly extends scope
-- Prefer public profile fields over aggressive scraping
+**Deprecated — do not use for investigations:**
+- `scripts/run_osint_mcp.mjs`
+- `scripts/run_full_osint.mjs`
+- `scripts/test_mcp_discovery.mjs`
+
+These were dev harnesses. The agent must call MCP tools directly per `SKILL.md`.
 
 ---
 
-## Script reference
+## MCP tool cheat sheet
 
-All scripts run from `skills/person-osint-pipeline/scripts/` with venv Python.
+| Phase | Tool | Purpose |
+|-------|------|---------|
+| Discovery | `browser_navigate` | Google, profiles, articles |
+| Discovery | `browser_snapshot` | Read page; get `ref=eN` for clicks |
+| Discovery | `browser_click` | Search-by-image, pagination, load-more |
+| Discovery | `browser_file_upload` | Reverse image search |
+| Harvest | `browser_take_screenshot` | `profile.png`, post images |
+| Harvest | `browser_press_key` | Scroll: `PageDown`, `End`, `PageUp` (no `browser_scroll`) |
+| Harvest | `browser_mouse_wheel` | Pixel scroll (requires `--caps=vision`) |
+| Metadata | `browser_snapshot` | Bio, posts, captions |
 
-### verify_accounts.py (Pass 1)
+Screenshot filenames must be **absolute**:
 
-```bash
-.venv/bin/python verify_accounts.py \
-  --workspace /path/to/subject_osint \
-  --reference reference.jpg \
-  --threshold 0.45
+```
+{workspace}/accounts/{handle_dir}/profile.png
+{workspace}/accounts/{handle_dir}/{url_slug}.png
+{workspace}/articles/{slug}.md
 ```
 
-### prune_faces.py (Pass 2)
+See `MCP_TOOL_MAP.md` for full task→tool mapping.
 
-```bash
-.venv/bin/python prune_faces.py \
-  --workspace /path/to/subject_osint \
-  --reference reference.jpg \
-  --match-threshold 0.45
-```
+---
 
-### build_social_graph.py
+## CAPTCHA / bot check — active wait (do not stop agent or browser)
 
-```bash
-.venv/bin/python build_social_graph.py \
-  --workspace /path/to/subject_osint
-```
+After **every** navigate and snapshot, scan for:
 
-Expects agent-populated `network/social_graph.csv` first.
+| Signal | Example |
+|--------|---------|
+| URL | `/sorry/`, `captcha`, `challenge` |
+| Snapshot text | "I'm not a robot", "unusual traffic", "verify you're human", "Just a moment" |
+| Elements | reCAPTCHA checkbox, iframe challenge |
+
+**When detected:**
+
+- **Pause** new navigations — do not open other URLs
+- **Do not** stop the agent turn or close the browser
+- Notify user once; then **poll until clear**
+
+### Backoff schedule
+
+| Round | Wait |
+|-------|------|
+| 1 | 60 s |
+| 2 | 60 s |
+| 3+ | Double (120 → 240 → 480 … max 3600 s) |
+
+Use `node scripts/poll_captcha.mjs` (keeps MCP session alive) or `browser_wait_for` + `browser_snapshot` in a loop.
+
+Auto-resume the **same URL** when snapshot shows CAPTCHA gone. Do not require user to say "continue".
+
+---
+
+## Agentic vs batch automation
+
+Investigations must **not** use Node heredocs, shell loops, or scripts that call MCP for many URLs in one run. The agent calls tools one at a time with snapshot reasoning between steps.
+
+See `SKILL.md` → "Agentic browsing rules".
+
+---
+
+## Login / CAPTCHA handling (legacy short form)
+
+1. `browser_snapshot` — detect login wall, CAPTCHA, "verify you're human"
+2. **Stop everything** — no new URLs
+3. Tell user to fix in visible browser window
+4. Wait indefinitely until user confirms
+5. `browser_snapshot` again on **same page**; proceed
 
 ---
 
@@ -135,21 +146,18 @@ Expects agent-populated `network/social_graph.csv` first.
 
 | Issue | Fix |
 |-------|-----|
-| `No face detected in reference` | Use a clear frontal reference photo |
-| InsightFace install fails on Apple Silicon | `pip install onnxruntime` (CPU build is fine) |
-| Playwright MCP not found | Cursor Settings → MCP → reload; run `npx playwright install` |
-| All accounts REJECTED | Lower threshold slightly (e.g. 0.40) or recheck reference photo |
-| Empty social graph | Instagram login required; complete Phase 6 manually or skip |
+| Login every session | Same `--user-data-dir`; no `--isolated`; don't delete profile dir |
+| LinkedIn "Join" page | User not logged in — run Session 0 |
+| MCP tools missing | Cursor Settings → MCP → enable playwright → reload |
+| Chrome not found (Arch) | Use `--browser=chromium` |
+| Screenshot write denied | Add `--allow-unrestricted-file-access` |
+| Agent ran node MCP scripts | Wrong — agent must use MCP tools directly, one URL at a time |
+| Agent skips posts, jumps URLs | Wrong — complete LinkedIn harvest checklist before next link |
+| CAPTCHA visible but agent continues | Wrong — pause navigations, run poll loop, keep browser open |
+| Agent ends turn waiting for "continue" | Wrong — auto-resume when CAPTCHA clears |
 
 ---
 
 ## Legal & ethics
 
-This pipeline collects **publicly available** information. Operators must:
-
-- Obtain appropriate authorization before investigating third parties
-- Comply with local privacy laws (GDPR, CCPA, etc.)
-- Not use outputs for harassment, stalking, or discrimination
-- Respect platform Terms of Service
-
-The Phase 0 authorization gate in `SKILL.md` is mandatory.
+Collect only publicly available information with appropriate authorization. Phase 0 in `SKILL.md` is mandatory.

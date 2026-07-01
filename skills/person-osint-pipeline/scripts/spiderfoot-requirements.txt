@@ -1,0 +1,26 @@
+# Minimal SpiderFoot runtime deps (full requirements.txt fails on Python 3.13/lxml build)
+cherrypy>=18.0
+cherrypy-cors>=1.6
+adblockparser>=0.7
+netaddr>=0.8
+dnspython>=2.0
+requests>=2.28
+mako>=1.2
+cryptography>=41.0
+publicsuffixlist>=0.9
+pyOpenSSL>=23.0
+secure>=0.3
+pygexf>=0.2
+phonenumbers>=8.13
+python-whois>=0.8
+ipwhois>=1.2
+lxml>=4.9
+PyYAML>=6.0
+PyPDF2>=3.0
+exifread>=3.0
+beautifulsoup4>=4.12
+soupsieve>=2.4
+python-docx>=1.0
+python-pptx>=1.0
+openpyxl>=3.1
+xlsxwriter>=3.0

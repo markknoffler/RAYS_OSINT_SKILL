@@ -29,7 +29,7 @@ See [skills/person-osint-pipeline/SKILL.md](skills/person-osint-pipeline/SKILL.m
 |-------------|-----------------|
 | Node.js | 18+ |
 | Python | 3.10+ |
-| Playwright browsers | `npx playwright install chromium` |
+| Playwright browsers | `npx @playwright/mcp install-browser chrome-for-testing` |
 | VLM agent | Claude, Codex, Hermes, or Cursor with vision |
 | Authorization | Legitimate purpose required — see skill Phase 0 |
 
@@ -58,26 +58,19 @@ cd skills/person-osint-pipeline/scripts
 
 First run downloads InsightFace `buffalo_l` models (~100MB) to `~/.insightface/models/`.
 
-### 3. Playwright MCP (Cursor)
+### 3. Playwright MCP (Cursor / Codex)
 
-This repo includes [`.cursor/mcp.json`](.cursor/mcp.json). In Cursor:
+This repo includes [`.cursor/mcp.json`](.cursor/mcp.json). In Cursor or Codex:
 
-1. Open this project folder
+1. Open this project folder (or copy `mcp.json` to `~/.codex/mcp.json`)
 2. **Settings → MCP** → enable `playwright`
-3. Run `npx playwright install chromium` once
+3. Run once:
 
-For Claude Desktop or other clients, add:
-
-```json
-{
-  "mcpServers": {
-    "playwright": {
-      "command": "npx",
-      "args": ["-y", "@playwright/mcp@latest"]
-    }
-  }
-}
+```bash
+npx @playwright/mcp install-browser chrome-for-testing
 ```
+
+MCP config uses **headed Chrome** (no `--headless`), `--user-data-dir` for persistent Instagram/LinkedIn login, and `--allow-unrestricted-file-access` so screenshots save to `{workspace}/accounts/`. Log in once in the visible browser window; the agent pauses for you on CAPTCHAs.
 
 ### 4. Run an investigation
 
